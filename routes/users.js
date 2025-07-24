@@ -3,6 +3,7 @@ import User from '../models/User.js'
 import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
 import verifyJWT from '../middlewares/verifyJWT.js'
+import adminOnly from '../middlewares/adminOnly.js'
 
 dotenv.config() // need to config globally
 
@@ -12,55 +13,79 @@ const expiration = '2h'
 
 const router = express.Router()
 
+router.get('/me', verifyJWT, async (req, res) => {
+  // this route is protected by JWT
+  console.log("req.user", req.user)
+  try {
+    const user = await User
+    .findById(req.user._id)
+    .select({ password: 0 })
+    res.json(user)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: error.message })
+  }
+})
 
-router.get('/', verifyJWT, (req, res) => {
-    // this route is protected by JWT
-  console.log('User: ', req.user)
-
-  res.send(req.user)
+router.get('/dashboard', verifyJWT, adminOnly, async (req, res) => {
+  // TODO -- aggregate all data for admin dashboard
+  console.log("req.user", req.user)
+  try {
+    const user = await User.findById(req.user._id)
+    res.json(user)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: error.message })
+  }
 })
 
 /**
  * GET route with verfication to get user info by ID
  */
 router.get('/:id', verifyJWT, async (req, res) => {
-    const { id } = req.params;
-    try {
-        const user = await User.findById(id)
-        res.status(200).json(user)
-    } catch (error) {
-        console.error(error)
-        res.status(500).json({ message: error.message })
-    }
+  const { id } = req.params
+  try {
+    const user = await User.findById(id)
+    res.status(200).json(user)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: error.message })
+  }
 })
 /**
  *  PATCH route with verfication to update user info
  */
 router.patch('/:id', verifyJWT, async (req, res) => {
-    const { id } = req.params 
-    try {
-        const updatedUser = await User.findByIdAndUpdate(id, req.body, { new: true })
-        res.status(202).json({ message: 'User information has been updated', user: updatedUser})
-    } catch (error) {
-        console.error(error)
-        res.status(500).json({ message: error.message })
-    }
+  const { id } = req.params
+  try {
+    const updatedUser = await User.findByIdAndUpdate(id, req.body, {
+      new: true
+    })
+    res
+      .status(202)
+      .json({ message: 'User information has been updated', user: updatedUser })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: error.message })
+  }
 })
 /**
  * DELETE route with verification to delete user data
  */
 router.delete('/:id', verifyJWT, async (req, res) => {
-    const { id } = req.params;
-    try {
-        const deletedUser = await User.findByIdAndDelete(id);
-        if (!deletedUser) {
-            return res.status(404).json({ message: 'User not found' })
-        }
-        res.status(200).json({ message: 'User deletion successful', user: deletedUser })
-    } catch (error) {
-        console.error('Error deleting user: ', error)
-        res.status(500).json({ error: 'Internal server error' })
+  const { id } = req.params
+  try {
+    const deletedUser = await User.findByIdAndDelete(id)
+    if (!deletedUser) {
+      return res.status(404).json({ message: 'User not found' })
     }
+    res
+      .status(200)
+      .json({ message: 'User deletion successful', user: deletedUser })
+  } catch (error) {
+    console.error('Error deleting user: ', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
 })
 
 router.post('/register', async (req, res) => {
@@ -97,7 +122,8 @@ router.post('/login', async (req, res) => {
     const payload = {
       _id: user._id,
       username: user.username,
-      email: user.email
+      email: user.email,
+      role: user.role,
     }
 
     // token
